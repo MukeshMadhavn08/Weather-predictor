@@ -9,17 +9,31 @@ rain_model = None
 weather_reg_model = None
 
 def load_models():
+    """Ensure models are loaded. Returns True if successful."""
     global rain_model, weather_reg_model
-    if rain_model is None or weather_reg_model is None:
-        try:
-            rain_model = joblib.load(os.path.join(MODEL_DIR, 'rain_model.joblib'))
-            weather_reg_model = joblib.load(os.path.join(MODEL_DIR, 'weather_reg_model.joblib'))
-        except FileNotFoundError:
-            # If models not found, train them inline or raise error
-            print("Models not found. Training needed.")
-            # For simplicity in testing: return None
+    if rain_model is not None and weather_reg_model is not None:
+        return True
+        
+    try:
+        if not os.path.exists(MODEL_DIR):
+            print(f"Model directory not found: {MODEL_DIR}")
             return False
-    return True
+            
+        print("Loading ML models into memory (this may take a moment)...")
+        rain_path = os.path.join(MODEL_DIR, 'rain_model.joblib')
+        reg_path = os.path.join(MODEL_DIR, 'weather_reg_model.joblib')
+        
+        if os.path.exists(rain_path) and os.path.exists(reg_path):
+            rain_model = joblib.load(rain_path)
+            weather_reg_model = joblib.load(reg_path)
+            print("ML models loaded successfully.")
+            return True
+        else:
+            print(f"Model files missing at {MODEL_DIR}")
+            return False
+    except Exception as e:
+        print(f"Error loading models: {e}")
+        return False
 
 def predict_realtime(temperature: float, humidity: float, pressure: float, light_level: float, previous_rain: int = 0):
     if not load_models():

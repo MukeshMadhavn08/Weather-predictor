@@ -33,24 +33,28 @@ async def ingest_sensor_data(data: SensorDataCreate, background_tasks: Backgroun
     db.add(new_data)
     await db.commit()
 
-    prediction = predict_realtime(
-        temperature=data.temperature,
-        humidity=data.humidity,
-        pressure=data.pressure,
-        light_level=data.light_level
-    )
+    # Run ML prediction safely — never block the response
+    try:
+        prediction = predict_realtime(
+            temperature=data.temperature,
+            humidity=data.humidity,
+            pressure=data.pressure,
+            light_level=data.light_level
+        )
 
-    if "error" in prediction:
-        return {"status": "stored", "warning": prediction["error"]}
+        if "error" not in prediction:
+            background_tasks.add_task(
+                check_alerts_and_notify,
+                db=db,
+                rain_prob=prediction["rain_probability"],
+                temp=data.temperature,
+                humidity=data.humidity,
+                pressure=data.pressure
+            )
+    except Exception as e:
+        print(f"ML prediction error (non-fatal): {e}")
 
-    background_tasks.add_task(
-        check_alerts_and_notify,
-        db=db,
-        rain_prob=prediction["rain_probability"],
-        temp=data.temperature,
-        humidity=data.humidity,
-        pressure=data.pressure
-    )
+    return {"status": "stored", "device": data.device_id}
 
 @router.get("/sensors/latest")
 async def get_latest_sensor_data(db: AsyncSession = Depends(get_db)):
